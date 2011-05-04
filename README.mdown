@@ -1,0 +1,21 @@
+# Capture
+
+Capture provides a quick, dirty, and scriptable way to screenshot a collection of URLs with a given set of WebKit contexts (where a context i a screen size + user agent). Use it to get a rough idea of how your device-targeted web site looks on (say) desktop Safari, an iPad, a Nexus One, and a BlackBerry 9900. 
+
+While the underlying rendering engine is a generic brand of WebKit, Capture can be useful as a check for general styling and features, especially for sites utilizing server-side device detection.
+
+## Installation
+
+Capture is a script for the [phantomJS](http://www.phantomjs.org/) headless WebKit stack. You'll need to [install that](http://code.google.com/p/phantomjs/wiki/BuildInstructions) first.
+
+## Usage
+
+Update the "user configuration" in capture.js as needed.
+
+Screenshot yahoo and google:
+
+`phantomjs capture.js http://yahoo.com http://google.com`
+
+Screenshot two URLs after setting a cookie:
+
+`phantomjs capture.js cookie:foo=somevalue http://mysite.com http://mysite.com/login`
