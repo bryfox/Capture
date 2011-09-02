@@ -2,7 +2,15 @@
 
 Capture provides a quick, dirty, and scriptable way to screenshot a collection of URLs with a given set of WebKit contexts (where a context i a screen size + user agent). Use it to get a rough idea of how your device-targeted web site looks on (say) desktop Safari, an iPad, a Nexus One, and a BlackBerry 9900. 
 
-While the underlying rendering engine is a generic brand of WebKit, Capture can be useful as a check for general styling and features, especially for sites utilizing server-side device detection.
+While the underlying rendering engine is a generic brand of WebKit, Capture can be useful as a check for general styling and features, especially for sites utilizing server-side device detection such as WURFL.
+
+## Version
+
+Now compatible with [Phantom 1.2](http://code.google.com/p/phantomjs/downloads/list): 
+
+    PhantomJS 1.2 was released on June 21, 2011. It is a major update, it introduces a whole set of new API. It is not compatible with the previous version. For porting existing scripts into the new API, follow the description below.
+
+For PhantomJS 1.0 support (deprecated), see the phantom-1.0 branch.
 
 ## Installation
 
@@ -16,6 +24,10 @@ Screenshot yahoo and google:
 
 `phantomjs capture.js http://yahoo.com http://google.com`
 
-Screenshot two URLs after setting a cookie:
+Turn on logging from the web page:
 
-`phantomjs capture.js cookie:foo=somevalue http://mysite.com http://mysite.com/login`
+`phantomjs capture.js http://yahoo.com --capture:logging=true`
+
+## Cookie support
+
+Phantomjs 1.2's sandboxing appears to have removed the ability to set a document cookie. A patch in master should provide alternate [cookie-setting functionality](https://github.com/ariya/phantomjs/pull/112)

@@ -1,130 +1,91 @@
 // User configuration
-var outputDir     = 'out',
-	contextList   = ['desktop','mobile'],
-    viewportSizes = {
-        desktop: { width: 1024, height: 960 },
-        mobile: { width: 320, height: 460 }
-    },
-    UAs = {
-        desktop: 'Mozilla/5.0 (Macintosh; U; PPC Mac OS X; en-US) AppleWebKit/533.3 (KHTML, like Gecko) PhantomJS/1.0 Safari/533.3',
-        mobile: 'Mozilla/5.0 (iPhone Simulator; U; CPU iPhone OS 4_0 like Mac OS X; en-us) AppleWebKit/532.9 (KHTML, like Gecko) Version/4.0.5 Mobile/8A293 Safari/6531.22.7'
+var outputDir = 'out',
+    deviceContexts = {
+      'desktop': {
+        'viewport': { width: 1024, height: 960 },
+        'userAgent': 'Mozilla/5.0 (Macintosh; U; PPC Mac OS X; en-US) AppleWebKit/533.3 (KHTML, like Gecko) PhantomJS/1.0 Safari/533.3'
+      },
+      'iphone': {
+        'viewport': { width: 320, height: 460 },
+        'userAgent': 'Mozilla/5.0 (iPhone; U; CPU iPhone OS 4_0 like Mac OS X; en-us) AppleWebKit/532.9 (KHTML, like Gecko) Version/4.0.5 Mobile/8A293 Safari/6531.22.7'
+      },
+      'ipad': {
+        'viewport': { width: 768, height: 1004 },
+        'userAgent': 'Mozilla/5.0(iPad; U; CPU OS 4_3 like Mac OS X; en-us) AppleWebKit/533.17.9 (KHTML, like Gecko) Version/5.0.2 Mobile/8F191 Safari/6533.18.5'
+      }
     };
 
-// Helpers
-var Context = {
-        all: function () { return contextList; },
-        current: function () {
-            var match = phantom.state.match(new RegExp("#(" + Context.all().join('|') + ")$"));
-            return match ? match[1] : Context.all()[0];
-        },
-        previous: function () {
-            var prevIndex = Context.currentIndex() - 1;
-            if (prevIndex <= 0) prevIndex = Context.all().length - 1;
-            return Context.all()[prevIndex];
-        },
-        next: function () {
-            var nextIndex = Context.atLastInGroup() ? 0 : Context.currentIndex() + 1;
-            return Context.all()[nextIndex];
-        },
-        currentIndex: function () {
-            return Context.all().indexOf(Context.current());
-        },
-        atLastInGroup: function () {
-            return Context.currentIndex() == Context.all().length - 1;
-        }
-    },
-    Url = {
-        _list: [],
-        all: function () { return Url._list; },
-        currentIndex: function () {
-          var match = phantom.state.match(new RegExp("(.+)#(?:" + Context.all().join('|') + ")?$"));
-          return match ? Url.all().indexOf(match[1]) : -1;
-        },
-		next: function () { return Url.all()[Url.currentIndex() + 1] || null; },
-        push: function (url) { Url._list.push(url); }
-    };
+function Capture (deviceContexts, outputDir) {
+  outputDir = outputDir || 'out';
 
-init();
+  var renderQueueLength = 0,
+      renderCompleteCount = 0,
+      urls = [],
+      opts = {};
 
-function init () {
-    var i, cookieSet = false, urls = Url.all();
-    
-    for (i = 0; i < phantom.args.length; i++) {
-        parseArg(phantom.args[i]);
+  init();
+
+  function init () {
+    var i, len, j = -1;
+
+    for (i = 0; i < phantom.args.length; i++)
+      parseArg(phantom.args[i]);
+
+    for (i = 0, len = urls.length; i < len; i++) {
+      for (context in deviceContexts) {
+        renderQueueLength++;
+        loadAndRender(urls[i], context);
+      }
     }
+  }
 
-    if (!urls.length) {
-        console.log("Usage: phantomjs capture.js [cookie:name=value] [url] [url] ...");
-        phantom.exit();
-    }
-    
-    switch (phantom.state) {
-        case '':
-            if (cookieSet) {
-                // FIXME
-                // Cookie isn't set for the first request,
-                // so add an extra request in here...
-                // subsequent requests will have the cookie set.
-                phantom.state = 'loadcookie';
-                phantom.open(urls[0]);
-            } else {
-                renderAndLoad();
-            }
-            break;
-        case 'loadcookie':
-            phantom.state = urls[0] + '#desktop';
-            phantom.viewportSize = { width: 1024, height: 960 };
-            phantom.open(urls[0]);
-            break;
-        default:
-            renderAndLoad();
-    }
-}
+  function onRenderDone (name) {
+    console.error('Saved ' + name);
+    if (++renderCompleteCount == renderQueueLength)
+      phantom.exit();
+  }
 
-function parseArg (arg) {
-    var match;
-    if ( (match = arg.match(/^cookie:(.+)=(.+)/)) ) {
-        cookieSet = true;
-        document.cookie = match[1] +"=" + match[2] + "; path=/";
-    } else {
-        Url.push(arg);
-    }
-}
+  function loadAndRender (url, contextName) {
+    var page = new WebPage(),
+        context = deviceContexts[contextName];
 
-// The primary controller method
-function renderAndLoad () {
-    var urlIndex, context, url, urls;
+    page.settings.userAgent = context.userAgent;
+    page.clipRect = page.viewportSize = context.viewport;
+    page.clipRect.top = 0;
+    page.clipRect.left = 0;
 
-    urlIndex = Url.currentIndex();
-    context  = Context.current();
-    urls     = Url.all();
-    url      = urls[urlIndex];
+    if (opts.logging)
+      page.onConsoleMessage = function (msg) { console.log(msg); };
 
-    // Render if there's something in queue
-    if (url) {
-        // Allow some padding for JS to run.
-        phantom.sleep(250);
-		console.log("rendering " + context + " for " + url);
-        phantom.render(filepath(url, context));
-    }
+    page.open(url, function (status) {
+      output = filepath(url, contextName);
+      if (status == 'success') {
+        (function (output) {
+          setTimeout(function () {
+            page.render(output);
+            onRenderDone(output);
+          }, 500);
+        }(output));
+      } else {
+        console.error('Error saving ' + output);
+      }
+    });
+  }
 
-    // Get the next URL
-    if (!phantom.state || Context.atLastInGroup()) url = Url.next();
-
-	// We might be all done
-    if (!url) return phantom.exit();
-
-	// Move to the next context
-    if (phantom.state) context = Context.next();
-
-    // Update everything for the next run & load the new URL
-    phantom.state = url + '#' + context;
-    phantom.viewportSize = viewportSizes[context];
-    phantom.userAgent    = UAs[context];
-    phantom.open(url);
-}
-
-function filepath (url, context) {
-	var cleanedName = url.replace(/^http:\/\//, '').replace(/[:\/]/g, '-');
+  function filepath (url, context) {
+    var cleanedName = url.replace(/^http:\/\//, '').replace(/[:\/]/g, '-');
     return outputDir + '/' + cleanedName + '_' + context + '.png';
+  }
+
+  function parseArg (arg) {
+      var match;
+      if ( (match = arg.match(/^--capture:(.+)=(.+)/)) ) {
+          opts[match[1]] = match[2];
+      } else if (arg.indexOf('--') != 0) {
+          urls.push(arg);
+      }
+  }
+
 }
+
+new Capture(deviceContexts);
